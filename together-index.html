@@ -240,10 +240,11 @@
 <script>
 const BASKET = "together";
 const NAMES = { A: "Ajay", N: "Nikkila" };
+const DEFAULT_PANTRY = "da0dd3b0-10b1-45c2-a86d-d61d60330442"; // shared, prefilled
 
 // ---------- local config (per device) ----------
 const CFG = {
-  get pantry(){ return localStorage.getItem("tg_pantry") || ""; },
+  get pantry(){ return localStorage.getItem("tg_pantry") || DEFAULT_PANTRY; },
   set pantry(v){ localStorage.setItem("tg_pantry", v.trim()); },
   get me(){ return (localStorage.getItem("tg_me") || "A").toUpperCase(); },
   set me(v){ localStorage.setItem("tg_me", v.trim().toUpperCase()); },
