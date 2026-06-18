@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Together</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#0e0f13;
+    --surface:#16181f;
+    --surface-2:#1d2029;
+    --line:#262a35;
+    --ink:#f4f5f7;
+    --muted:#8b909e;
+    --faint:#5a5f6c;
+    --accent:#e8745f;     /* warm terracotta — the one warm note */
+    --accent-soft:#3a2520;
+    --thread:#e8745f;
+    --ok:#6fcf97;
+    --radius:18px;
+    --pad:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.45}
+  body{max-width:520px;margin:0 auto;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 32px)}
+
+  /* ---- header ---- */
+  header{display:flex;align-items:baseline;justify-content:space-between;
+    padding:26px 4px 18px}
+  .wordmark{font-size:15px;font-weight:600;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted)}
+  .wordmark b{color:var(--accent);font-weight:600}
+  #gear{background:none;border:0;color:var(--faint);font-size:18px;
+    cursor:pointer;padding:6px;line-height:1}
+  #gear:hover{color:var(--muted)}
+
+  /* ---- hero: the distance ---- */
+  .hero{padding:18px 4px 26px;text-align:center}
+  .hero .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:14px}
+  .distance{font-size:clamp(56px,18vw,84px);font-weight:200;
+    letter-spacing:-.03em;line-height:.95;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  .distance .unit{font-size:.3em;font-weight:400;color:var(--muted);
+    letter-spacing:0;margin-left:.15em}
+  .endpoints{display:flex;align-items:center;justify-content:center;
+    gap:14px;margin-top:18px;color:var(--muted);font-size:14px}
+  .endpoints .who{font-weight:500;color:var(--ink)}
+  .endpoints .place{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+  .thread{flex:0 0 56px;height:1px;background:
+    repeating-linear-gradient(90deg,var(--thread) 0 5px,transparent 5px 10px);
+    opacity:.55;position:relative}
+  .thread::after{content:"";position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);width:5px;height:5px;border-radius:50%;
+    background:var(--accent)}
+
+  /* ---- together banner ---- */
+  .together-now{display:none;margin:0 4px 18px;padding:14px 18px;
+    background:linear-gradient(135deg,#1c2b22,#16201a);
+    border:1px solid #2c4636;border-radius:var(--radius);
+    text-align:center;font-size:15px;font-weight:500;color:var(--ok)}
+  body.is-together .together-now{display:block}
+  body.is-together .hero .eyebrow{color:var(--ok)}
+
+  /* ---- nudge ---- */
+  .nudge{display:none;margin:0 4px 18px;padding:14px 18px;
+    background:var(--accent-soft);border:1px solid #4a2e26;
+    border-radius:var(--radius);font-size:14px;color:#f0b9ac;text-align:center}
+  body.show-nudge .nudge{display:block}
+
+  /* ---- map ---- */
+  #map{height:230px;border-radius:var(--radius);overflow:hidden;
+    border:1px solid var(--line);margin:0 4px 22px;background:var(--surface)}
+  .leaflet-container{background:var(--surface)}
+  .leaflet-tile{filter:grayscale(1) brightness(.7) contrast(1.05)}
+  .pin{width:26px;height:26px;border-radius:50% 50% 50% 2px;
+    transform:rotate(45deg);border:2px solid var(--bg);
+    box-shadow:0 2px 6px rgba(0,0,0,.5);display:grid;place-items:center}
+  .pin span{transform:rotate(-45deg);font-size:11px;font-weight:700;color:var(--bg)}
+
+  /* ---- stats grid ---- */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 4px 22px}
+  .stat{background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:16px 16px 15px}
+  .stat .num{font-size:30px;font-weight:300;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums}
+  .stat .num.warn{color:var(--accent)}
+  .stat .lbl{font-size:12px;color:var(--muted);margin-top:3px;
+    letter-spacing:.02em}
+  .stat.wide{grid-column:1/-1}
+
+  /* ---- heatmap ---- */
+  .section-title{font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);margin:4px 8px 12px}
+  .heat-wrap{background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px 16px;margin:0 4px 22px;
+    overflow-x:auto}
+  .heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);
+    gap:3px;width:max-content}
+  .heat i{width:11px;height:11px;border-radius:2.5px;background:var(--surface-2)}
+  .heat i.l1{background:#4a2e26}
+  .heat i.l2{background:#8a4636}
+  .heat i.l3{background:var(--accent)}
+  .heat-legend{display:flex;align-items:center;gap:6px;justify-content:flex-end;
+    margin-top:12px;font-size:11px;color:var(--faint)}
+  .heat-legend i{width:11px;height:11px;border-radius:2.5px;display:inline-block}
+
+  /* ---- actions ---- */
+  .actions{display:flex;gap:10px;margin:0 4px}
+  button.act{flex:1;padding:15px;border-radius:14px;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);font-size:15px;font-weight:500;
+    font-family:inherit;cursor:pointer;transition:.15s}
+  button.act:hover{background:var(--surface-2)}
+  button.act.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.act.primary:hover{filter:brightness(1.06)}
+
+  .updated{text-align:center;color:var(--faint);font-size:12px;margin:24px 4px 0}
+
+  /* ---- modal ---- */
+  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+    backdrop-filter:blur(6px);z-index:1000;align-items:flex-end;justify-content:center}
+  .modal.open{display:flex}
+  .sheet{background:var(--surface);width:100%;max-width:520px;
+    border-radius:22px 22px 0 0;border-top:1px solid var(--line);
+    padding:24px 22px calc(env(safe-area-inset-bottom) + 28px)}
+  .sheet h2{font-size:18px;font-weight:600;margin-bottom:4px}
+  .sheet p.sub{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:12px;color:var(--muted);
+    margin-bottom:6px;letter-spacing:.02em}
+  .field input{width:100%;padding:13px 14px;border-radius:12px;
+    border:1px solid var(--line);background:var(--bg);color:var(--ink);
+    font-size:15px;font-family:inherit}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .field .hint{font-size:11px;color:var(--faint);margin-top:5px}
+  .row{display:flex;gap:12px}
+  .row .field{flex:1}
+  .sheet .act{width:100%;margin-top:6px}
+
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:30px 10px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">to<b>·</b>gether</div>
+  <button id="gear" aria-label="Settings">⚙</button>
+</header>
+
+<div class="together-now">You're together right now 🤍</div>
+<div class="nudge" id="nudge"></div>
+
+<section class="hero">
+  <div class="eyebrow" id="heroEyebrow">apart</div>
+  <div class="distance" id="distance">—<span class="unit">km</span></div>
+  <div class="endpoints">
+    <div>
+      <span class="who" id="meName">Ajay</span>
+      <span class="place" id="mePlace">—</span>
+    </div>
+    <div class="thread"></div>
+    <div>
+      <span class="who" id="partnerName">Nikkila</span>
+      <span class="place" id="partnerPlace">—</span>
+    </div>
+  </div>
+</section>
+
+<div id="map"></div>
+
+<div class="section-title">Together so far</div>
+<div class="stats">
+  <div class="stat">
+    <div class="num" id="statMeetups">—</div>
+    <div class="lbl">times together</div>
+  </div>
+  <div class="stat">
+    <div class="num" id="statDays">—</div>
+    <div class="lbl">days together total</div>
+  </div>
+  <div class="stat">
+    <div class="num" id="statSince">—</div>
+    <div class="lbl" id="sinceLbl">days since last</div>
+  </div>
+  <div class="stat">
+    <div class="num" id="statLongest">—</div>
+    <div class="lbl">longest visit (days)</div>
+  </div>
+</div>
+
+<div class="section-title">Last 6 months</div>
+<div class="heat-wrap">
+  <div class="heat" id="heat"></div>
+  <div class="heat-legend">
+    less <i style="background:var(--surface-2)"></i><i class="" style="background:#4a2e26"></i>
+    <i style="background:#8a4636"></i><i style="background:var(--accent)"></i> more
+  </div>
+</div>
+
+<div class="actions">
+  <button class="act primary" id="markBtn">We're together now</button>
+  <button class="act" id="refreshBtn">Refresh</button>
+</div>
+
+<div class="updated" id="updated">—</div>
+
+<!-- Settings sheet -->
+<div class="modal" id="settingsModal">
+  <div class="sheet">
+    <h2>Setup</h2>
+    <p class="sub">Stored on this device only. Enter the same Pantry ID on both phones.</p>
+    <div class="field">
+      <label>Shared Pantry ID</label>
+      <input id="inPantry" placeholder="paste pantry id" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint">Identical on both phones. Get one free at getpantry.cloud.</div>
+    </div>
+    <div class="field">
+      <label>I am</label>
+      <input id="inMe" placeholder="A or N" maxlength="1" autocapitalize="characters">
+      <div class="hint">Ajay = A on his phone, Nikkila = N on hers.</div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Apart too long after (days)</label>
+        <input id="inNudge" type="number" min="1" placeholder="10">
+      </div>
+      <div class="field">
+        <label>Together radius (km)</label>
+        <input id="inRadius" type="number" min="0.1" step="0.1" placeholder="2">
+      </div>
+    </div>
+    <button class="act primary" id="saveBtn">Save</button>
+  </div>
+</div>
+
+<script>
+const BASKET = "together";
+const NAMES = { A: "Ajay", N: "Nikkila" };
+
+// ---------- local config (per device) ----------
+const CFG = {
+  get pantry(){ return localStorage.getItem("tg_pantry") || ""; },
+  set pantry(v){ localStorage.setItem("tg_pantry", v.trim()); },
+  get me(){ return (localStorage.getItem("tg_me") || "A").toUpperCase(); },
+  set me(v){ localStorage.setItem("tg_me", v.trim().toUpperCase()); },
+  get nudge(){ return Number(localStorage.getItem("tg_nudge") || 10); },
+  set nudge(v){ localStorage.setItem("tg_nudge", String(v)); },
+  get radiusKm(){ return Number(localStorage.getItem("tg_radius") || 2); },
+  set radiusKm(v){ localStorage.setItem("tg_radius", String(v)); },
+};
+
+const baseUrl = () =>
+  `https://getpantry.cloud/apiv1/pantry/${CFG.pantry}/basket/${BASKET}`;
+
+// ---------- helpers ----------
+function haversineKm(a, b){
+  const R = 6371, toRad = d => d*Math.PI/180;
+  const dLat = toRad(b.lat-a.lat), dLon = toRad(b.lon-a.lon);
+  const x = Math.sin(dLat/2)**2 +
+    Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+const dayKey = d => new Date(d).toISOString().slice(0,10);
+function daysBetween(a, b){
+  return Math.round((new Date(b)-new Date(a)) / 86400000);
+}
+function fmtDist(km){
+  if (km < 1) return { v: Math.round(km*1000), u: "m" };
+  if (km < 100) return { v: km.toFixed(1), u: "km" };
+  return { v: Math.round(km).toLocaleString(), u: "km" };
+}
+
+// ---------- map ----------
+let map, layerGroup;
+function initMap(){
+  map = L.map("map", { zoomControl:false, attributionControl:false });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom:19 }).addTo(map);
+  layerGroup = L.layerGroup().addTo(map);
+  map.setView([20,0], 1);
+}
+function pinIcon(initial, color){
+  return L.divIcon({
+    className:"",
+    html:`<div class="pin" style="background:${color}"><span>${initial}</span></div>`,
+    iconSize:[26,26], iconAnchor:[13,24],
+  });
+}
+function drawMap(me, partner){
+  layerGroup.clearLayers();
+  const pts = [];
+  if (me && me.lat!=null){
+    L.marker([me.lat,me.lon],
+      {icon:pinIcon(CFG.me, "var(--ink)")}).addTo(layerGroup);
+    pts.push([me.lat,me.lon]);
+  }
+  if (partner && partner.lat!=null){
+    const pInit = CFG.me==="A" ? "N" : "A";
+    L.marker([partner.lat,partner.lon],
+      {icon:pinIcon(pInit, "var(--accent)")}).addTo(layerGroup);
+    pts.push([partner.lat,partner.lon]);
+  }
+  if (pts.length===2){
+    L.polyline(pts, {color:"var(--accent)", weight:1.5,
+      dashArray:"4 6", opacity:.7}).addTo(layerGroup);
+    map.fitBounds(pts, {padding:[45,45], maxZoom:9});
+  } else if (pts.length===1){
+    map.setView(pts[0], 9);
+  }
+}
+
+// ---------- stats from meetup log ----------
+function computeStats(meetups){
+  const closed = meetups.filter(m => m.start && m.end);
+  const open = meetups.find(m => m.start && !m.end);
+  let totalDays = 0, longest = 0;
+  const daySet = new Set();
+
+  // Treat an in-progress meetup as running until now for totals/heatmap.
+  const ranges = closed.map(m => ({start:m.start, end:m.end}));
+  if (open) ranges.push({start:open.start, end:new Date().toISOString()});
+
+  for (const m of ranges){
+    const d = Math.max(1, daysBetween(m.start, m.end));
+    totalDays += d; longest = Math.max(longest, d);
+    // mark each calendar day in range for the heatmap
+    let cur = new Date(m.start);
+    const end = new Date(m.end);
+    while (cur <= end){ daySet.add(dayKey(cur)); cur.setDate(cur.getDate()+1); }
+  }
+
+  const count = closed.length + (open ? 1 : 0);
+
+  // days since last together
+  let since = null, sinceIsOngoing = !!open;
+  if (open){ since = 0; }
+  else if (closed.length){
+    const lastEnd = closed
+      .map(m => new Date(m.end))
+      .sort((a,b)=>b-a)[0];
+    since = daysBetween(lastEnd, new Date());
+  }
+
+  return { count, totalDays, longest, since, sinceIsOngoing, daySet };
+}
+
+// ---------- heatmap (last ~26 weeks) ----------
+function drawHeat(daySet){
+  const heat = document.getElementById("heat");
+  heat.innerHTML = "";
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 26*7);
+  // align to Monday
+  while (start.getDay() !== 1) start.setDate(start.getDate()-1);
+
+  for (let d = new Date(start); d <= today; d.setDate(d.getDate()+1)){
+    const cell = document.createElement("i");
+    if (daySet.has(dayKey(d))) cell.className = "l3";
+    heat.appendChild(cell);
+  }
+}
+
+// ---------- render ----------
+async function load(){
+  if (!CFG.pantry){ openSettings(); return; }
+
+  document.getElementById("meName").textContent = NAMES[CFG.me] || "Me";
+  const pKey = CFG.me==="A" ? "N" : "A";
+  document.getElementById("partnerName").textContent = NAMES[pKey] || "Partner";
+
+  let data;
+  try{
+    const res = await fetch(baseUrl(), {cache:"no-store"});
+    if (!res.ok) throw new Error("Pantry "+res.status);
+    data = await res.json();
+  }catch(e){
+    document.getElementById("updated").textContent =
+      "Couldn't reach Pantry. Check the ID in Setup.";
+    return;
+  }
+
+  const me = data[CFG.me];
+  const partner = data[pKey];
+
+  document.getElementById("mePlace").textContent = me?.label || "—";
+  document.getElementById("partnerPlace").textContent = partner?.label || "—";
+
+  // distance
+  const distEl = document.getElementById("distance");
+  if (me?.lat!=null && partner?.lat!=null){
+    const km = haversineKm(me, partner);
+    const f = fmtDist(km);
+    distEl.innerHTML = `${f.v}<span class="unit">${f.u}</span>`;
+
+    const together = km <= CFG.radiusKm;
+    document.body.classList.toggle("is-together", together);
+    document.getElementById("heroEyebrow").textContent = together ? "together" : "apart";
+    drawMap(me, partner);
+  } else {
+    distEl.innerHTML = `—<span class="unit">km</span>`;
+    drawMap(me, partner);
+  }
+
+  // stats
+  const meetups = Array.isArray(data.meetups) ? data.meetups : [];
+  const s = computeStats(meetups);
+  document.getElementById("statMeetups").textContent = s.count;
+  document.getElementById("statDays").textContent = s.totalDays;
+  document.getElementById("statLongest").textContent = s.longest || "—";
+
+  const sinceEl = document.getElementById("statSince");
+  const sinceLbl = document.getElementById("sinceLbl");
+  if (s.sinceIsOngoing){
+    sinceEl.textContent = "now"; sinceEl.classList.remove("warn");
+    sinceLbl.textContent = "together right now";
+  } else if (s.since!=null){
+    sinceEl.textContent = s.since; sinceLbl.textContent = "days since last";
+    sinceEl.classList.toggle("warn", s.since >= CFG.nudge);
+  } else {
+    sinceEl.textContent = "—"; sinceLbl.textContent = "days since last";
+  }
+
+  // nudge
+  const showNudge = !s.sinceIsOngoing && s.since!=null && s.since >= CFG.nudge;
+  document.body.classList.toggle("show-nudge", showNudge);
+  if (showNudge){
+    document.getElementById("nudge").textContent =
+      `It's been ${s.since} days. Time to plan a visit? 💭`;
+  }
+
+  drawHeat(s.daySet);
+
+  // freshness
+  const stamps = [me?.updated, partner?.updated].filter(Boolean)
+    .map(t => new Date(t)).sort((a,b)=>b-a);
+  document.getElementById("updated").textContent = stamps.length
+    ? "Updated " + timeAgo(stamps[0]) : "No location data yet.";
+}
+
+function timeAgo(d){
+  const min = Math.round((Date.now()-d)/60000);
+  if (min < 1) return "just now";
+  if (min < 60) return min+" min ago";
+  const hr = Math.round(min/60);
+  if (hr < 24) return hr+(hr===1?" hour ago":" hours ago");
+  const dd = Math.round(hr/24);
+  return dd+(dd===1?" day ago":" days ago");
+}
+
+// ---------- manual "together now" ----------
+async function markTogether(){
+  if (!CFG.pantry){ openSettings(); return; }
+  const btn = document.getElementById("markBtn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try{
+    const res = await fetch(baseUrl(), {cache:"no-store"});
+    const data = res.ok ? await res.json() : {};
+    const meetups = Array.isArray(data.meetups) ? data.meetups : [];
+    const open = meetups.find(m => m.start && !m.end);
+    if (!open){
+      meetups.push({ start:new Date().toISOString(), end:null, place:"Together" });
+      await fetch(baseUrl(), {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ meetups })
+      });
+    }
+    await load();
+  }catch(e){
+    alert("Couldn't save. Check your connection.");
+  }
+  btn.disabled = false; btn.textContent = "We're together now";
+}
+
+// ---------- settings ----------
+function openSettings(){
+  document.getElementById("inPantry").value = CFG.pantry;
+  document.getElementById("inMe").value = CFG.me;
+  document.getElementById("inNudge").value = CFG.nudge;
+  document.getElementById("inRadius").value = CFG.radiusKm;
+  document.getElementById("settingsModal").classList.add("open");
+}
+function closeSettings(){
+  document.getElementById("settingsModal").classList.remove("open");
+}
+document.getElementById("gear").onclick = openSettings;
+document.getElementById("settingsModal").onclick = e => {
+  if (e.target.id === "settingsModal") closeSettings();
+};
+document.getElementById("saveBtn").onclick = () => {
+  CFG.pantry = document.getElementById("inPantry").value;
+  CFG.me = document.getElementById("inMe").value || "A";
+  CFG.nudge = document.getElementById("inNudge").value || 10;
+  CFG.radiusKm = document.getElementById("inRadius").value || 2;
+  closeSettings();
+  load();
+};
+document.getElementById("markBtn").onclick = markTogether;
+document.getElementById("refreshBtn").onclick = load;
+
+// ---------- go ----------
+initMap();
+load();
+</script>
+</body>
+</html>
